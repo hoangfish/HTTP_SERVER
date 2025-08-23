@@ -167,4 +167,99 @@ const updateRoomStatus = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { getRooms, getRoomById, createRoom, deleteRoom, bookRoom, updateRoomStatus };
+const createMultipleRooms = asyncHandler(async (req, res) => {
+    const roomsData = req.body;
+
+    // Kiểm tra xem req.body có phải là mảng không
+    if (!Array.isArray(roomsData) || roomsData.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Please provide an array of rooms'
+        });
+    }
+
+    const validRoomTypes = ['single', 'double', 'family'];
+    const validStatuses = ['available', 'booked'];
+    const createdRooms = [];
+    const errors = [];
+
+    // Kiểm tra dữ liệu từng phòng
+    for (let i = 0; i < roomsData.length; i++) {
+        const {
+            roomId,
+            roomNumber,
+            status,
+            bedCount,
+            roomType,
+            price,
+            description,
+            image,
+            guests,
+            area
+        } = roomsData[i];
+
+        // Kiểm tra các trường bắt buộc
+        if (!roomId || !roomNumber || !bedCount || !roomType || !price || !description || !image || !guests || !area) {
+            errors.push(`Room at index ${i} is missing required fields`);
+            continue;
+        }
+
+        // Kiểm tra roomType hợp lệ
+        if (!validRoomTypes.includes(roomType)) {
+            errors.push(`Room at index ${i} has invalid roomType. Must be one of: single, double, family`);
+            continue;
+        }
+
+        // Kiểm tra status hợp lệ
+        if (status && !validStatuses.includes(status)) {
+            errors.push(`Room at index ${i} has invalid status. Must be one of: available, booked`);
+            continue;
+        }
+
+        // Kiểm tra roomId và roomNumber đã tồn tại
+        const existingRoom = await Room.findOne({ $or: [{ roomId }, { roomNumber }] });
+        if (existingRoom) {
+            errors.push(`Room at index ${i} has roomId or roomNumber already exists`);
+            continue;
+        }
+
+        // Tạo phòng mới
+        const room = new Room({
+            roomId,
+            roomNumber,
+            status: status || 'available',
+            bedCount,
+            roomType,
+            price,
+            description,
+            image,
+            guests,
+            area
+        });
+
+        try {
+            await room.save();
+            createdRooms.push(room);
+        } catch (error) {
+            errors.push(`Room at index ${i} failed to save: ${error.message}`);
+        }
+    }
+
+    // Trả về kết quả
+    if (errors.length > 0) {
+        return res.status(207).json({
+            success: true,
+            message: 'Some rooms were created, but there were errors',
+            data: createdRooms,
+            errors
+        });
+    }
+
+    res.status(201).json({
+        success: true,
+        message: 'All rooms created successfully',
+        data: createdRooms
+    });
+});
+
+module.exports = { getRooms, getRoomById, createRoom, deleteRoom, bookRoom, updateRoomStatus, createMultipleRooms };
