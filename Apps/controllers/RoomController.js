@@ -24,7 +24,7 @@ const getRoomById = asyncHandler(async (req, res) => {
 });
 
 const createRoom = asyncHandler(async (req, res) => {
-    const { roomId, roomNumber, status, bedCount, roomType, price, description, image, guests, area } = req.body;
+    const { roomId, roomNumber,isCheckIn,isCheckOut, status, bedCount, roomType, price, description, image, guests, area } = req.body;
 
     // Kiểm tra các trường bắt buộc
     if (!roomId || !roomNumber || !bedCount || !roomType || !price || !description || !image || !guests || !area) {
@@ -138,7 +138,28 @@ const bookRoom = asyncHandler(async (req, res) => {
         }
     });
 });
+const addCheckFlagsToRooms = asyncHandler(async (req, res) => {
+  try {
+    const result = await Room.updateMany(
+      {},
+      {
+        $set: { isCheckIn: false, isCheckOut: false }
+      }
+    );
 
+    res.status(200).json({
+      success: true,
+      message: "All rooms updated with isCheckIn and isCheckOut = false",
+      modifiedCount: result.modifiedCount
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error updating rooms",
+      error: error.message
+    });
+  }
+});
 const updateRoomStatus = asyncHandler(async (req, res) => {
     const { status } = req.body;
     if (!status || !['available', 'booked'].includes(status)) {
@@ -189,6 +210,8 @@ const createMultipleRooms = asyncHandler(async (req, res) => {
             roomId,
             roomNumber,
             status,
+            isCheckIn,
+            isCheckOut,
             bedCount,
             roomType,
             price,
@@ -228,6 +251,8 @@ const createMultipleRooms = asyncHandler(async (req, res) => {
             roomId,
             roomNumber,
             status: status || 'available',
+            isCheckIn: isCheckIn|| 'false',
+            isCheckOut: isCheckOut|| 'false',
             bedCount,
             roomType,
             price,
@@ -262,4 +287,4 @@ const createMultipleRooms = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { getRooms, getRoomById, createRoom, deleteRoom, bookRoom, updateRoomStatus, createMultipleRooms };
+module.exports = { getRooms, getRoomById, createRoom, deleteRoom, bookRoom, updateRoomStatus, createMultipleRooms, addCheckFlagsToRooms };

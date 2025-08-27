@@ -1,12 +1,17 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
+const { v4: uuidv4 } = require('uuid');
 
 const RoomSchema = new Schema({
     roomId: { type: String, required: true, trim: true },
-    roomNumber: { type: String, required: true, trim: true },
-    price: { type: Number, required: true },
+    roomNumber: { type: String, trim: true },
+    price: { type: Number },
+    bookingCode: {type: String},
     checkInDate: { type: Date, required: true },
-    checkOutDate: { type: Date, required: true }
+    isCheckIn: { type: Boolean },
+    isCheckOut: { type: Boolean },
+    checkOutDate: { type: Date, required: true },
+    status: { type: String, default: 'booked', enum: ['booked', 'cancelled'] } // Thêm status
 }, { _id: true });
 
 const userSchema = new Schema({
@@ -20,7 +25,8 @@ const userSchema = new Schema({
     },
     userId: {
         type: String,
-        required: true
+        unique: true,
+        default: uuidv4
     },
     email: {
         type: String,

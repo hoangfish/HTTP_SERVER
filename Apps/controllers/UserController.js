@@ -4,27 +4,22 @@ const { Room } = require('../models/RoomModel');
 const bcrypt = require('bcryptjs');
 
 const registerUser = asyncHandler(async (req, res) => {
-    const { firstName, lastName, userId, email, phone, password } = req.body;
+    const { firstName, lastName, email, phone, password } = req.body;
 
-    // Check for missing fields
-    if (!firstName || !lastName || !userId || !email || !phone || !password) {
+    if (!firstName || !lastName || !email || !phone || !password) {
         return res.status(400).json({ success: false, message: 'Please fill in all fields' });
     }
 
-    // Check if email or phone already exists
     const existingUser = await UserModel.findOne({ $or: [{ email }, { phone }] });
     if (existingUser) {
         return res.status(400).json({ success: false, message: 'Email or phone number already in use' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user
     const user = new UserModel({
         firstName,
         lastName,
-        userId,
         email,
         phone,
         password: hashedPassword
@@ -35,18 +30,16 @@ const registerUser = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Registration failed' });
     }
 
-    res.status(201).json({ success: true, message: 'Registration successful' });
+    res.status(201).json({ success: true, message: 'Registration successful', data: { userId: savedUser.userId } });
 });
 
 const loginUser = asyncHandler(async (req, res) => {
     const { emailOrPhone, password } = req.body;
 
-    // Check for missing fields
     if (!emailOrPhone || !password) {
         return res.status(400).json({ success: false, message: 'Please provide email/phone and password' });
     }
 
-    // Find user by email or phone
     const user = await UserModel.findOne({
         $or: [{ email: emailOrPhone }, { phone: emailOrPhone }]
     });
@@ -55,13 +48,11 @@ const loginUser = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Email or phone number not found' });
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
         return res.status(400).json({ success: false, message: 'Incorrect password' });
     }
 
-    // Return user info (excluding password)
     res.status(200).json({
         success: true,
         message: 'Login successful',
@@ -77,7 +68,6 @@ const loginUser = asyncHandler(async (req, res) => {
 
 const logoutUser = asyncHandler(async (req, res) => {
     try {
-        // Hiện tại không dùng JWT/session, chỉ trả về thành công
         res.status(200).json({ success: true, message: 'Logout successful' });
     } catch (error) {
         console.error('Logout failed:', error.message);
@@ -87,7 +77,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 
 const updateListRoomForUser = asyncHandler(async (req, res) => {
     try {
-        const { roomId, userId, checkInDate, checkOutDate } = req.body;
+        const {bookingCode, roomId, userId, checkInDate, checkOutDate } = req.body;
 
         if (!userId || !roomId || !checkInDate || !checkOutDate) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -99,11 +89,15 @@ const updateListRoomForUser = asyncHandler(async (req, res) => {
         }
 
         const newRoom = {
+            bookingCode: bookingCode,
             roomId: roomId,
             roomNumber: room.roomNumber,
             price: room.price,
+            isCheckIn: false,
+            isCheckOut: false,
             checkInDate: new Date(checkInDate),
-            checkOutDate: new Date(checkOutDate)
+            checkOutDate: new Date(checkOutDate),
+            status: 'booked'
         };
 
         const updatedUser = await UserModel.findOneAndUpdate(
@@ -130,4 +124,92 @@ const getUserBookings = asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, data: user.RoomList });
 });
 
-module.exports = { registerUser, loginUser, logoutUser, updateListRoomForUser, getUserBookings };
+const cancelBooking = asyncHandler(async (req, res) => {
+    const { userId, roomId, bookingCode, action } = req.body;
+
+    if (!userId || !bookingCode || !action) {
+        return res.status(400).json({ success: false, message: 'Thiếu userId, roomId hoặc action' });
+    }
+
+    const user = await UserModel.findOne({ userId });
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
+    }
+
+    const booking = user.RoomList.find(booking => booking.bookingCode === bookingCode);
+    if (!booking) {
+        return res.status(404).json({ success: false, message: 'Không tìm thấy đặt phòng' });
+    }
+
+    const room = await Room.findOne({ roomId });
+    if (!room) {
+        return res.status(404).json({ success: false, message: 'Không tìm thấy phòng' });
+    }
+
+    if (action === 'cancel') {
+        const now = new Date();
+        const checkInDate = new Date(booking.checkInDate);
+
+        // Lấy ngày (0h00)
+        const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const checkInDateOnly = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
+
+        if (nowDate >= checkInDateOnly) {
+            return res.status(400).json({ success: false, message: 'Không thể hủy đặt phòng vào hoặc sau ngày check-in' });
+        }
+
+        // Update status to cancelled and remove booking from RoomList
+        booking.status = 'cancelled';
+        user.RoomList = user.RoomList.filter(booking => booking.bookingCode !== bookingCode);
+        await user.save();
+
+        // Update room status to available
+        room.status = 'available';
+        await room.save();
+
+        return res.status(200).json({ success: true, message: `Hủy đặt phòng ${bookingCode} thành công!` });
+    } else if (action === 'checkIn') {
+        // Check if check-in is allowed (on or after check-in date)
+        const now = new Date();
+        const checkInDate = new Date(booking.checkInDate);
+        const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const checkInDateOnly = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
+
+        if (nowDate < checkInDateOnly) {
+            return res.status(400).json({ success: false, message: 'Không thể check-in trước ngày check-in' });
+        }
+
+        // Update booking in RoomList
+        booking.isCheckIn = true;
+        await user.save();
+
+        return res.status(200).json({ success: true, message: `Đã check-in phòng ${bookingCode}!` });
+    } else if (action === 'checkOut') {
+        // Check if check-out is allowed (after check-in and before or on check-out date)
+        const now = new Date();
+        const checkOutDate = new Date(booking.checkOutDate);
+        const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const checkOutDateOnly = new Date(checkOutDate.getFullYear(), checkOutDate.getMonth(), checkOutDate.getDate());
+
+        if (!booking.isCheckIn) {
+            return res.status(400).json({ success: false, message: 'Không thể check-out trước khi check-in' });
+        }
+        if (nowDate > checkOutDateOnly) {
+            return res.status(400).json({ success: false, message: 'Không thể check-out sau ngày check-out' });
+        }
+
+        // Update booking in RoomList
+        booking.isCheckOut = true;
+        await user.save();
+
+        // Update room status to available
+        room.status = 'available';
+        await room.save();
+
+        return res.status(200).json({ success: true, message: `Đã check-out phòng ${bookingCode}!` });
+    } else {
+        return res.status(400).json({ success: false, message: 'Hành động không hợp lệ' });
+    }
+});
+
+module.exports = { registerUser, loginUser, logoutUser, updateListRoomForUser, getUserBookings, cancelBooking };

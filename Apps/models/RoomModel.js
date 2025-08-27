@@ -5,6 +5,8 @@ const RoomSchema = new Schema({
     roomId: { type: String, required: true, unique: true, trim: true },
     roomNumber: { type: String, required: true, trim: true },
     status: { type: String, required: true, enum: ['available', 'booked'], default: 'available' },
+    isCheckIn: { type: Boolean },
+    isCheckOut: { type: Boolean },
     bedCount: { type: Number, required: true },
     roomType: { type: String, required: true },
     price: { type: Number, required: true },
