@@ -28,6 +28,7 @@ const userSchema = new Schema({
         unique: true,
         default: uuidv4
     },
+    
     email: {
         type: String,
         required: true,

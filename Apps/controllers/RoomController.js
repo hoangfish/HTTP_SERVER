@@ -9,6 +9,24 @@ const getRooms = asyncHandler(async (req, res) => {
     });
 });
 
+const getRoomsByType = asyncHandler(async (req, res) => {
+  const { type } = req.body;
+
+  const rooms = await Room.find({ roomType: type });
+
+  if (!rooms || rooms.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: `No rooms found for type: ${type}`,
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: rooms,
+  });
+});
+
 const getRoomById = asyncHandler(async (req, res) => {
     const room = await Room.findOne({ roomId: req.params.id });
     if (!room) {
@@ -287,4 +305,4 @@ const createMultipleRooms = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { getRooms, getRoomById, createRoom, deleteRoom, bookRoom, updateRoomStatus, createMultipleRooms, addCheckFlagsToRooms };
+module.exports = { getRooms,getRoomsByType, getRoomById, createRoom, deleteRoom, bookRoom, updateRoomStatus, createMultipleRooms, addCheckFlagsToRooms };
