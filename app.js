@@ -12,8 +12,10 @@ require('colors');
 
 require('./Apps/models/UserModel');
 require('./Apps/models/RoomModel');
+require('./Apps/models/AdminModel');
 const userRoutes = require('./Apps/routes/UserRoute');
 const roomRoutes = require('./Apps/routes/RoomRoute');
+const adminRoutes = require('./Apps/routes/AdminRoute');
 
 const app = express();
 
@@ -26,8 +28,8 @@ const versionOne = (routeName) => `/api/v1/${routeName}`;
 
 app.use(versionOne('users'), userRoutes);
 app.use(versionOne('rooms'), roomRoutes);
+app.use(versionOne('admin'), adminRoutes);
 
-// Middleware xử lý lỗi
 app.use((err, req, res, next) => {
     console.error('Server error:'.red, err);
     res.status(500).json({ success: false, message: 'Server error' });

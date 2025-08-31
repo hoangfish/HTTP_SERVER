@@ -1,6 +1,7 @@
 const asyncHandler = require('../middlewares/async');
 const { UserModel } = require('../models/UserModel');
 const { Room } = require('../models/RoomModel');
+const { AdminModel } = require('../models/AdminModel');
 const bcrypt = require('bcryptjs');
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -30,6 +31,20 @@ const registerUser = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Registration failed' });
     }
 
+    // Thêm user vào UserList của admin
+    const admin = await AdminModel.findOne();
+    if (admin) {
+        admin.UserList.push({
+            userId: savedUser.userId,
+            firstName: savedUser.firstName,
+            lastName: savedUser.lastName,
+            email: savedUser.email,
+            phone: savedUser.phone,
+            RoomList: savedUser.RoomList
+        });
+        await admin.save();
+    }
+
     res.status(201).json({ success: true, message: 'Registration successful', data: { userId: savedUser.userId } });
 });
 
@@ -51,6 +66,32 @@ const loginUser = asyncHandler(async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
         return res.status(400).json({ success: false, message: 'Incorrect password' });
+    }
+
+    // Cập nhật UserList của admin khi user đăng nhập
+    const admin = await AdminModel.findOne();
+    if (admin) {
+        const userIndex = admin.UserList.findIndex(u => u.userId === user.userId);
+        if (userIndex >= 0) {
+            admin.UserList[userIndex] = {
+                userId: user.userId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                phone: user.phone,
+                RoomList: user.RoomList
+            };
+        } else {
+            admin.UserList.push({
+                userId: user.userId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                phone: user.phone,
+                RoomList: user.RoomList
+            });
+        }
+        await admin.save();
     }
 
     res.status(200).json({
@@ -77,7 +118,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 
 const updateListRoomForUser = asyncHandler(async (req, res) => {
     try {
-        const {bookingCode, roomId, userId, checkInDate, checkOutDate } = req.body;
+        const { bookingCode, roomId, userId, checkInDate, checkOutDate } = req.body;
 
         if (!userId || !roomId || !checkInDate || !checkOutDate) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -108,6 +149,16 @@ const updateListRoomForUser = asyncHandler(async (req, res) => {
 
         if (!updatedUser) {
             return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Cập nhật RoomList trong UserList của admin
+        const admin = await AdminModel.findOne();
+        if (admin) {
+            const userIndex = admin.UserList.findIndex(u => u.userId === updatedUser.userId);
+            if (userIndex >= 0) {
+                admin.UserList[userIndex].RoomList = updatedUser.RoomList;
+                await admin.save();
+            }
         }
 
         res.status(200).json({ success: true, data: updatedUser.RoomList });
@@ -167,6 +218,16 @@ const cancelBooking = asyncHandler(async (req, res) => {
         room.status = 'available';
         await room.save();
 
+        // Cập nhật RoomList trong UserList của admin
+        const admin = await AdminModel.findOne();
+        if (admin) {
+            const userIndex = admin.UserList.findIndex(u => u.userId === user.userId);
+            if (userIndex >= 0) {
+                admin.UserList[userIndex].RoomList = user.RoomList;
+                await admin.save();
+            }
+        }
+
         return res.status(200).json({ success: true, message: `Hủy đặt phòng ${bookingCode} thành công!` });
     } else if (action === 'checkIn') {
         // Check if check-in is allowed (on or after check-in date)
@@ -182,6 +243,16 @@ const cancelBooking = asyncHandler(async (req, res) => {
         // Update booking in RoomList
         booking.isCheckIn = true;
         await user.save();
+
+        // Cập nhật RoomList trong UserList của admin
+        const admin = await AdminModel.findOne();
+        if (admin) {
+            const userIndex = admin.UserList.findIndex(u => u.userId === user.userId);
+            if (userIndex >= 0) {
+                admin.UserList[userIndex].RoomList = user.RoomList;
+                await admin.save();
+            }
+        }
 
         return res.status(200).json({ success: true, message: `Đã check-in phòng ${bookingCode}!` });
     } else if (action === 'checkOut') {
@@ -205,6 +276,16 @@ const cancelBooking = asyncHandler(async (req, res) => {
         // Update room status to available
         room.status = 'available';
         await room.save();
+
+        // Cập nhật RoomList trong UserList của admin
+        const admin = await AdminModel.findOne();
+        if (admin) {
+            const userIndex = admin.UserList.findIndex(u => u.userId === user.userId);
+            if (userIndex >= 0) {
+                admin.UserList[userIndex].RoomList = user.RoomList;
+                await admin.save();
+            }
+        }
 
         return res.status(200).json({ success: true, message: `Đã check-out phòng ${bookingCode}!` });
     } else {
