@@ -55,6 +55,7 @@ const userSchema = new Schema({
         type: [RoomSchema],
         default: []
     },
+    images: [String]
 });
 
 const UserModel = mongoose.model('UserModel', userSchema);

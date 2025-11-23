@@ -5,7 +5,7 @@ const { AdminModel } = require('../models/AdminModel');
 const bcrypt = require('bcryptjs');
 
 const registerUser = asyncHandler(async (req, res) => {
-    const { firstName, lastName, email, phone, password } = req.body;
+    const { firstName, lastName, email, phone, password,images } = req.body;
 
     if (!firstName || !lastName || !email || !phone || !password) {
         return res.status(400).json({ success: false, message: 'Please fill in all fields' });
@@ -23,7 +23,8 @@ const registerUser = asyncHandler(async (req, res) => {
         lastName,
         email,
         phone,
-        password: hashedPassword
+        password: hashedPassword,
+        images
     });
 
     const savedUser = await user.save();
@@ -40,6 +41,7 @@ const registerUser = asyncHandler(async (req, res) => {
             lastName: savedUser.lastName,
             email: savedUser.email,
             phone: savedUser.phone,
+            images: savedUser.images,
             RoomList: savedUser.RoomList
         });
         await admin.save();
@@ -47,7 +49,31 @@ const registerUser = asyncHandler(async (req, res) => {
 
     res.status(201).json({ success: true, message: 'Registration successful', data: { userId: savedUser.userId } });
 });
+const getUserAndImages = asyncHandler(async (req, res) => {
+  try {
+    const user = await UserModel.findOne({}, { userId: 1, images: 1, _id: 0 });
 
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No user found in database",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      userId: user.userId,
+      images: user.images || [],
+      count: user.images?.length || 0,
+    });
+  } catch (error) {
+    console.error("Error fetching user info:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
 const loginUser = asyncHandler(async (req, res) => {
     const { emailOrPhone, password } = req.body;
 
@@ -293,4 +319,4 @@ const cancelBooking = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { registerUser, loginUser, logoutUser, updateListRoomForUser, getUserBookings, cancelBooking };
+module.exports = { registerUser, loginUser, logoutUser, updateListRoomForUser, getUserBookings, cancelBooking, getUserAndImages };
